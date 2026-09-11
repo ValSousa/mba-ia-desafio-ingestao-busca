@@ -2,20 +2,29 @@
 
 > Um sistema de linha de comando (CLI) que lê um PDF, indexa seu conteúdo em um banco vetorial e responde perguntas **exclusivamente** com base no que está no documento — sem alucinações, sem conhecimento externo.
 
-Projeto desenvolvido como desafio prático de RAG (Retrieval-Augmented Generation), combinando **Python**, **LangChain**, **PostgreSQL + pgVector** e a API do **Google Gemini**.
+Projeto desenvolvido como desafio prático de **RAG** (Retrieval-Augmented Generation).
+
+Combina **Python**, **LangChain**, **PostgreSQL + pgVector** e a API do **Google Gemini**.
 
 ---
 
 ## 🎯 O que esta aplicação faz?
 
 1. 📄 Lê um arquivo PDF e divide seu conteúdo em pedaços menores (*chunks*)
+
 2. 🧮 Converte cada chunk em um vetor numérico (*embedding*)
+
 3. 🐘 Armazena esses vetores no PostgreSQL, usando a extensão **pgVector**
+
 4. ❓ Recebe perguntas do usuário via terminal
+
 5. 🔍 Busca, por similaridade semântica, os 10 trechos mais relevantes para a pergunta
+
 6. 🤖 Envia esses trechos + a pergunta para um LLM (Gemini), que responde **somente** com base neles
 
-Se a resposta não estiver explicitamente no PDF, a aplicação responde com uma recusa fixa — nunca inventa ou completa com conhecimento próprio do modelo.
+Se a resposta não estiver explicitamente no PDF, a aplicação recusa educadamente.
+
+Ela nunca inventa e nunca completa com conhecimento próprio do modelo.
 
 ### 💬 Exemplo prático
 
@@ -33,7 +42,9 @@ RESPOSTA: Não tenho informações necessárias para responder sua pergunta.
 
 ## 🧠 Objetivo do desafio
 
-Praticar o padrão RAG de ponta a ponta: ingestão de documentos, geração de embeddings, busca vetorial e geração de respostas com *grounding* (resposta ancorada apenas no contexto recuperado, sem alucinação).
+Praticar o padrão RAG de ponta a ponta.
+
+Isso inclui: ingestão de documentos, geração de embeddings, busca vetorial e geração de respostas com *grounding* — ou seja, respostas ancoradas apenas no contexto recuperado, sem alucinação.
 
 ## 🛠️ Tecnologias utilizadas
 
@@ -47,33 +58,45 @@ Praticar o padrão RAG de ponta a ponta: ingestão de documentos, geração de e
 
 ## 🏗️ Como funciona (arquitetura)
 
+O fluxo acontece em duas fases independentes.
+
+**Fase 1 — Ingestão** (`src/ingest.py`, roda uma única vez):
+
 ```
 document.pdf
      │
      ▼
- PyPDFLoader                    (src/ingest.py)
+PyPDFLoader
      │
      ▼
-RecursiveCharacterTextSplitter  → chunks de 1000 caracteres, com 150 de sobreposição
+RecursiveCharacterTextSplitter
+     │      (chunks de 1000 caracteres, com 150 de sobreposição)
+     ▼
+Embeddings (Gemini)
      │
      ▼
- Embeddings (Gemini)
+PostgreSQL + pgVector
+```
+
+**Fase 2 — Busca e resposta** (`src/search.py` + `src/chat.py`, roda a cada pergunta):
+
+```
+Pergunta do usuário
      │
      ▼
- PostgreSQL + pgVector  ◄────────────┐
-                                      │
-                              similarity_search_with_score(pergunta, k=10)
-                                      │
- Pergunta do usuário  ────────────────┘             (src/search.py)
+Embedding da pergunta
      │
      ▼
- Contexto + Prompt com regras de grounding
+Busca no pgVector
+     │      (similarity_search_with_score, k=10)
+     ▼
+Contexto + Prompt com regras de grounding
      │
      ▼
- LLM (Gemini)
+LLM (Gemini)
      │
      ▼
- Resposta exibida no terminal                        (src/chat.py)
+Resposta exibida no terminal
 ```
 
 ---
