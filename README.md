@@ -1,155 +1,179 @@
-# Ingestão e Busca Semântica com LangChain e Postgres
+# 📚 Ingestão e Busca Semântica com LangChain e Postgres
 
-## Objetivo
+> Um sistema de linha de comando (CLI) que lê um PDF, indexa seu conteúdo em um banco vetorial e responde perguntas **exclusivamente** com base no que está no documento — sem alucinações, sem conhecimento externo.
 
-Você deve entregar um software capaz de:
-
-- Ingestão: Ler um arquivo PDF e salvar suas informações em um banco de dados PostgreSQL com extensão pgVector.
-- Busca: Permitir que o usuário faça perguntas via linha de comando (CLI) e receba respostas baseadas apenas no conteúdo do PDF.
-
-## Exemplo no CLI
-
-Faça sua pergunta:
-
-```
-PERGUNTA: Qual o faturamento da Empresa SuperTechIABrazil?
-RESPOSTA: O faturamento foi de 10 milhões de reais.
+Projeto desenvolvido como desafio prático de RAG (Retrieval-Augmented Generation), combinando **Python**, **LangChain**, **PostgreSQL + pgVector** e a API do **Google Gemini**.
 
 ---
 
-Perguntas fora do contexto:
+## 🎯 O que esta aplicação faz?
+
+1. 📄 Lê um arquivo PDF e divide seu conteúdo em pedaços menores (*chunks*)
+2. 🧮 Converte cada chunk em um vetor numérico (*embedding*)
+3. 🐘 Armazena esses vetores no PostgreSQL, usando a extensão **pgVector**
+4. ❓ Recebe perguntas do usuário via terminal
+5. 🔍 Busca, por similaridade semântica, os 10 trechos mais relevantes para a pergunta
+6. 🤖 Envia esses trechos + a pergunta para um LLM (Gemini), que responde **somente** com base neles
+
+Se a resposta não estiver explicitamente no PDF, a aplicação responde com uma recusa fixa — nunca inventa ou completa com conhecimento próprio do modelo.
+
+### 💬 Exemplo prático
+
+```
+PERGUNTA: Qual o faturamento da Empresa SuperTechIABrazil?
+RESPOSTA: O faturamento da empresa SuperTechIABrazil é de R$ 10.000.000,00.
+
+---
 
 PERGUNTA: Quantos clientes temos em 2024?
 RESPOSTA: Não tenho informações necessárias para responder sua pergunta.
 ```
 
-## Tecnologias obrigatórias
+---
 
-- Linguagem: Python
-- Framework: LangChain
-- Banco de dados: PostgreSQL + pgVector
-- Execução do banco de dados: Docker & Docker Compose (docker-compose fornecido no repositório de exemplo)
+## 🧠 Objetivo do desafio
 
-## Pacotes recomendados
+Praticar o padrão RAG de ponta a ponta: ingestão de documentos, geração de embeddings, busca vetorial e geração de respostas com *grounding* (resposta ancorada apenas no contexto recuperado, sem alucinação).
 
-- Split: `from langchain_text_splitters import RecursiveCharacterTextSplitter`
-- Embeddings (OpenAI): `from langchain_openai import OpenAIEmbeddings`
-- Embeddings (Gemini): `from langchain_google_genai import GoogleGenerativeAIEmbeddings`
-- PDF: `from langchain_community.document_loaders import PyPDFLoader`
-- Ingestão: `from langchain_postgres import PGVector`
-- Busca: `similarity_search_with_score(query, k=10)`
+## 🛠️ Tecnologias utilizadas
 
-## OpenAI
+| Tecnologia | Papel no projeto |
+|---|---|
+| 🐍 **Python** | Linguagem da aplicação |
+| 🦜 **LangChain** | Orquestração de document loaders, embeddings, vector store e prompts |
+| 🐘 **PostgreSQL + pgVector** | Armazenamento e busca por similaridade dos vetores |
+| 🐳 **Docker & Docker Compose** | Execução do banco de dados, isolada e reprodutível |
+| ✨ **Google Gemini** | Modelo de embedding (`gemini-embedding-001`) e modelo de chat (`gemini-3.6-flash`) |
 
-- Crie uma API Key da OpenAI.
-- Você vai precisar de um modelo de embeddings e de um modelo de LLM para responder. Consulte a documentação oficial da OpenAI para ver os modelos disponíveis.
-
-## Gemini
-
-- Crie uma API Key da Google.
-- Você vai precisar de um modelo de embeddings e de um modelo de LLM para responder. Consulte a documentação oficial do Google para ver os modelos disponíveis.
-
-Os limites de requisições gratuitas dos modelos podem mudar com frequência. Para informações atualizadas, consulte a documentação oficial do Google.
-
-## Escolha dos modelos
-
-Este desafio não fixa modelos. Nomes e versões mudam com frequência e alguns são descontinuados, então faz parte do desafio consultar a documentação oficial do provedor que você escolher, ver quais modelos estão disponíveis no momento e selecionar os que atendem ao objetivo. Para o volume deste desafio, os modelos mais leves e baratos de cada provedor são suficientes.
-
-Atenção: modelos de embedding diferentes geram vetores com dimensões diferentes. A tabela de vetores é criada na primeira ingestão, já com a dimensão do modelo que você escolheu. Se você trocar de modelo de embeddings depois disso, a ingestão passa a falhar por incompatibilidade de dimensão. Nesse caso é responsabilidade sua apagar a collection existente (ou o volume do banco) e refazer a ingestão do zero com o novo modelo.
-
-## Requisitos
-
-### 1. Ingestão do PDF
-
-- O PDF deve ser dividido em chunks de 1000 caracteres com overlap de 150.
-- Cada chunk deve ser convertido em embedding.
-- Os vetores devem ser armazenados no banco de dados PostgreSQL com pgVector.
-
-### 2. Consulta via CLI
-
-Criar um script Python para simular um chat no terminal.
-
-Passos ao receber uma pergunta:
-
-- Vetorizar a pergunta.
-- Buscar os 10 resultados mais relevantes (k=10) no banco vetorial.
-- Montar o prompt e chamar a LLM.
-- Retornar a resposta ao usuário.
-
-Prompt a ser utilizado:
+## 🏗️ Como funciona (arquitetura)
 
 ```
-CONTEXTO:
-{resultados concatenados do banco de dados}
-
-REGRAS:
-- Responda somente com base no CONTEXTO.
-- Se a informação não estiver explicitamente no CONTEXTO, responda:
-  "Não tenho informações necessárias para responder sua pergunta."
-- Nunca invente ou use conhecimento externo.
-- Nunca produza opiniões ou interpretações além do que está escrito.
-
-EXEMPLOS DE PERGUNTAS FORA DO CONTEXTO:
-Pergunta: "Qual é a capital da França?"
-Resposta: "Não tenho informações necessárias para responder sua pergunta."
-
-Pergunta: "Quantos clientes temos em 2024?"
-Resposta: "Não tenho informações necessárias para responder sua pergunta."
-
-Pergunta: "Você acha isso bom ou ruim?"
-Resposta: "Não tenho informações necessárias para responder sua pergunta."
-
-PERGUNTA DO USUÁRIO:
-{pergunta do usuário}
-
-RESPONDA A "PERGUNTA DO USUÁRIO"
+document.pdf
+     │
+     ▼
+ PyPDFLoader                    (src/ingest.py)
+     │
+     ▼
+RecursiveCharacterTextSplitter  → chunks de 1000 caracteres, com 150 de sobreposição
+     │
+     ▼
+ Embeddings (Gemini)
+     │
+     ▼
+ PostgreSQL + pgVector  ◄────────────┐
+                                      │
+                              similarity_search_with_score(pergunta, k=10)
+                                      │
+ Pergunta do usuário  ────────────────┘             (src/search.py)
+     │
+     ▼
+ Contexto + Prompt com regras de grounding
+     │
+     ▼
+ LLM (Gemini)
+     │
+     ▼
+ Resposta exibida no terminal                        (src/chat.py)
 ```
 
-## Estrutura obrigatória do projeto
+---
 
-Faça um fork do repositório para utilizar a estrutura abaixo: https://github.com/devfullcycle/mba-ia-desafio-ingestao-busca
+## ✅ Pré-requisitos
 
+- **Python 3.11+** — [baixar aqui](https://www.python.org/downloads/) (versões anteriores não são compatíveis com as dependências fixadas em `requirements.txt`)
+- **Docker Desktop** — [baixar aqui](https://www.docker.com/products/docker-desktop/)
+- **Google API Key gratuita** — [obter em Google AI Studio](https://aistudio.google.com/apikey)
+
+## ⚙️ Configuração e execução
+
+**1. Clone o repositório e entre na pasta do projeto**
+```bash
+git clone <url-do-repositorio>
+cd mba-ia-desafio-ingestao-busca
 ```
-├── docker-compose.yml
-├── requirements.txt      # Dependências
-├── .env.example          # Template das variáveis de ambiente
-├── src/
-│   ├── ingest.py         # Script de ingestão do PDF
-│   ├── search.py         # Script de busca
-│   ├── chat.py           # CLI para interação com usuário
-├── document.pdf          # PDF para ingestão
-└── README.md             # Instruções de execução
-```
 
-## VirtualEnv para Python
+**2. Crie e ative um ambiente virtual**
+```bash
+python -m venv venv
 
-Crie e ative um ambiente virtual antes de instalar dependências:
+# Windows
+venv\Scripts\activate
 
-```
-python3 -m venv venv
+# Linux/macOS
 source venv/bin/activate
 ```
 
-## Ordem de execução
-
-1. Subir o banco de dados:
-
+**3. Instale as dependências**
+```bash
+pip install -r requirements.txt
 ```
+
+**4. Configure as variáveis de ambiente**
+
+Copie o template e preencha com seus dados:
+```bash
+cp .env.example .env
+```
+
+| Variável | Descrição |
+|---|---|
+| `GOOGLE_API_KEY` | Sua chave da API do Google AI Studio |
+| `GOOGLE_EMBEDDING_MODEL` | Modelo de embedding (padrão: `models/gemini-embedding-001`) |
+| `GOOGLE_LLM_MODEL` | Modelo de chat (padrão: `gemini-3.6-flash`) |
+| `DATABASE_URL` | String de conexão com o Postgres (ex.: `postgresql+psycopg://postgres:postgres@localhost:5432/rag`) |
+| `PG_VECTOR_COLLECTION_NAME` | Nome da coleção de vetores no pgVector |
+| `PDF_PATH` | Caminho do PDF a ser ingerido (padrão: `document.pdf`) |
+
+**5. Suba o banco de dados**
+```bash
 docker compose up -d
 ```
 
-2. Executar ingestão do PDF:
-
-```
+**6. Rode a ingestão do PDF** (uma única vez, ou sempre que trocar de documento/modelo de embedding)
+```bash
 python src/ingest.py
 ```
 
-3. Rodar o chat:
-
-```
+**7. Inicie o chat**
+```bash
 python src/chat.py
 ```
 
-## Entregável
+Digite sua pergunta e pressione Enter. Para encerrar, digite `sair`, `exit` ou `quit`.
 
-Repositório público no GitHub contendo todo o código-fonte e README com instruções claras de execução do projeto.
+> ⚠️ **Atenção:** se você trocar de modelo de embedding depois de já ter ingerido dados, a dimensão dos vetores muda e a busca deixa de funcionar. Nesse caso, apague a coleção (ou o volume `postgres_data`) e rode a ingestão novamente.
+
+---
+
+## 📁 Estrutura do projeto
+
+```
+├── docker-compose.yml    # Sobe o PostgreSQL com pgVector
+├── requirements.txt      # Dependências do projeto
+├── .env.example          # Template das variáveis de ambiente
+├── document.pdf          # PDF de exemplo, usado na ingestão
+├── src/
+│   ├── ingest.py         # Lê o PDF, gera embeddings e grava no pgVector
+│   ├── search.py         # Busca semântica + montagem do prompt + chamada ao LLM
+│   └── chat.py           # Interface de linha de comando (CLI)
+└── README.md
+```
+
+## 🧪 Cenários testados
+
+| Cenário | Comportamento esperado |
+|---|---|
+| Pergunta com resposta explícita no PDF | Responde corretamente, citando a informação do documento |
+| Pergunta sem resposta no PDF | Recusa fixa: *"Não tenho informações necessárias para responder sua pergunta."* |
+| Pergunta parcialmente relacionada | Responde só a parte presente no contexto, recusando o restante |
+| Tentativa de usar conhecimento externo (ex.: *"qual a capital da França?"*) | Recusa, mesmo sendo uma pergunta de conhecimento geral |
+
+---
+
+## 📄 Licença
+
+Este projeto foi desenvolvido para o MBA de Engenharia de Software com IA - Full Cycle.
+
+---
+
+🚀 Desenvolvido por **Valéria Sousa** ([@ValSousa](https://github.com/ValSousa))
